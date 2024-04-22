@@ -40,40 +40,76 @@ int main(int argc, char *argv[]) {
 
   //cout << "World rank: " << setw(2) << rank << "  |  Cell: (" <<  rank_col << ", " << rank_row << ")" << endl;
 
-  //actual homework problem
+  //PROBLEM 1
+
+
   int M = 14;
-  int x_size = M/P + ((rank_col < (M % P)) ? 1 : 0);
-  cout << "rank_col: " << rank_col << " | x_size: " << x_size << endl;
+  int x_size = M/size_col + ((rank_col < (M % size_col)) ? 1 : 0);
   vector<int> x_sub(x_size);
   
-  if (rank_row == 0 && rank_col == 0){
-    vector<int> x(M);
+  //scatter x across col 0
+  if (rank_row == 0){
+    std::vector<int> x_sendcounts(size_col);
+    std::vector<int> x_displs(size_col);
 
-    // Fill the vector with numbers 1 through 14
-    for (int i = 0; i < M; ++i) {
-        x[i] = i + 1;
+    //calculate size of each sub-array
+    for (int i = 0; i < size_col; ++i) {
+      x_sendcounts[i] = M / size_col + ((i < (M % size_col)) ? 1 : 0);
     }
 
-    // Print the vector
-   // std::cout << "Vector content:\n";
-    for (int num : x) {
-        //cout << num << " ";
-    } 
+    //calculate displacement (what index the sub-array starts)
+    int x_count = x_displs[0] = 0;
+    for(int i = 1; i < size_col; ++i)
+    {
+      x_count += x_sendcounts[i-1];
+      x_displs[i] = x_count;
+    }
 
+    //define x, and populate from 1-14 in (0, 0)
+    std::vector<int> x(M);
+    if (rank_col == 0) {
+        for (int i = 0; i < M; ++i) {
+            x[i] = i + 1;
+        }
+    }
 
-int *recvarray = new int[recvcount];
-
-cout << rank << ": Before Scatterv" << endl;
-
-// Assuming you have defined and initialized array, sendcounts, and displs correctly
-MPI_Scatterv(array, sendcounts, displs, MPI_INT, recvarray, recvcount,
-             MPI_INT, 0, MPI_COMM_WORLD);
-
+    //scatter x across col 0
+    x_sub.resize(x_sendcounts[rank_col]);
+    MPI_Scatterv(&x[0], &x_sendcounts[0], &x_displs[0], MPI_INT, &x_sub[0], x_size, MPI_INT, 0, comm_col);
   }
-cout << rank << ": After Scatterv; recvcount = " << recvcount << endl;
 
-for(int i = 0; i < recvcount; ++i)
-    cout << rank << ": recvarray[" << i << "] = " << recvarray[i] << endl;
+  MPI_Bcast(&x_sub[0], x_size, MPI_INT, 0, comm_row);
+
+  //print the received portion of vector x_sub on each process in the row communicator
+  /*std::cout << "(" << rank_col << ", " << rank_row << ") received: ";
+  for (int i = 0; i < x_size; i++) {
+    std::cout << x_sub[i] << " ";
+  }
+  std::cout << std::endl;*/
+  
+
+  int y_size = M/size_row + ((rank_row < (M % size_row)) ? 1 : 0);
+  vector<int> y_sub(y_size);
+  //std::cout << "(" << rank_col << ", " << rank_row << ") row size: " << y_size << endl;
+  for (int i = 0; i < y_size; ++i){
+    for (int j = 1; j <= x_size; ++1_{
+      //iif (size_row * rank_col + j
+  }
+
+
+  //calculate size of each sub-array
+    for (int i = 0; i < size_col; ++i) {
+      x_sendcounts[i] = M / size_col + ((i < (M % size_col)) ? 1 : 0);
+    }
+
+    //calculate displacement (what index the sub-array starts)
+    int x_count = x_displs[0] = 0;
+    for(int i = 1; i < size_col; ++i)
+    {
+      x_count += x_sendcounts[i-1];
+      x_displs[i] = x_count;
+    }
+
 
 
 
