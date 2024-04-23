@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
       x_displs_array[i] = x_count;
     }
 
-    //define x and populate from 1-14 in (0, 0)
+    //define x and populate from 0, 2, ... 62 in (0, 0)
     std::vector<int> x(M);
     if (rank_col == 0) {
       cout << "\nM: ";
@@ -109,10 +109,9 @@ int main(int argc, char *argv[]) {
 
 
   //work with row 0 to develop one vector of size M to hold results and distribute it among this row then horizontally
-  int y_size, y_displs;
+  int y_size;
   if(rank_col == 0){
     int *y_sizes_array = new int[size_row];
-    int *y_displs_array = new int[size_row];
 
     //work with column 0 to develop y_sub arrays
     if (rank_row == 0){
@@ -121,37 +120,38 @@ int main(int argc, char *argv[]) {
       for(int i = 0; i < size_row; ++i){
         y_sizes_array[i] = M / size_row + ((i < (M % size_row)) ? 1 : 0);
       }
-      
-      //calculate displacement (what index the sub-array starts)
-      int count = y_displs_array[0] = 0;
-      for(int i = 1; i < size_row; ++i){
-        count += y_sizes_array[i-1];
-        y_displs_array[i] = count;
-      }
     }
 
-    //scatter sizes and displacements across row 0
+    //scatter sizes across row 0
     MPI_Scatter(y_sizes_array, 1, MPI_INT, &y_size, 1, MPI_INT, 0, comm_row);
-    MPI_Scatter(y_displs_array, 1, MPI_INT, &y_displs, 1, MPI_INT, 0, comm_row);
   }
 
   //broadcast each y_sub from row 0 vertically in each process row
   MPI_Bcast(&y_size, 1, MPI_INT, 0, comm_col);
-  MPI_Bcast(&y_displs, 1, MPI_INT, 0, comm_col);
   
 
-  //**conduct forward linear load-balanced distribution**
+  //**conduct linear scatter distribution**
+ 
+  //calculates the starting point of the y_sub based on how many elements should exist before it with calculations using x_displs
+  int y_displs = (rank_col != 0) ? (x_displs - rank_row - 1) / size_row + 1 : 0;
+
+  //use round-robin to find values for y_sub and place them in y_sub starting at y_displs
   vector<int> y_sub(y_size, 0);
-  for (int i = 0; i < y_size; i++){
-    for (int j = 0; j < x_size; j++){
-      //if displacements from x and y match, then put the value in the vector in its corresponding position
-      if ((i + y_displs)  == (j + x_displs)){
-        y_sub[i] = x_sub[j];
-      }
+  for (int i = 0; i < x_size; i++){
+    if (((i + x_displs) % size_row) == rank_row){
+      y_sub[y_displs] = x_sub[i];
+      y_displs++;
     }
   }
 
-  //perform allreduce among each col to fill up each index on each result vecot
+  //print y_sub
+  /*cout << "(" << rank_col << ", " << rank_row << ") |  ";
+  for (int i = 0; i < y_size; i++){
+    cout << y_sub[i] << " ";
+  }
+  cout << endl;*/
+
+  //perform allreduce among each col to fill up each index on each result vector
   vector<int> result(y_size, 0);
   MPI_Allreduce(&y_sub[0], &result[0], y_size, MPI_INT, MPI_SUM, comm_col);
 
