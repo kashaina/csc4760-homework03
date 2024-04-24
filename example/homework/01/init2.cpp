@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
 
 
   //**store vector x of length M, distributed in a linear load-balanced fashion vertically**
-  int M = 14;
+  int M = 32;
   int x_size = M/size_col + ((rank_col < (M % size_col)) ? 1 : 0);
   vector<int> x_sub(x_size);
   int x_displs;
@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
     if (rank_col == 0) {
       cout << "\nM: ";
       for (int i = 0; i < M; ++i) {
-        x[i] = i + 1;
+        x[i] = i * 2;
 	cout << x[i] << " ";
       }
       cout << "\n\nFinal results:\n";
@@ -92,18 +92,20 @@ int main(int argc, char *argv[]) {
     // scatter x and displacements across column 0
     x_sub.resize(x_sizes_array[rank_col]);
     MPI_Scatterv(&x[0], &x_sizes_array[0], &x_displs_array[0], MPI_INT, &x_sub[0], x_size, MPI_INT, 0, comm_col);
+    MPI_Scatter(&x_displs_array[0], 1, MPI_INT, &x_displs, 1, MPI_INT, 0, comm_col);
   }
 
   // broadcast each x_sub from column 0 horizontally in each process row**
   MPI_Bcast(&x_sub[0], x_size, MPI_INT, 0, comm_row);
+  MPI_Bcast(&x_displs, 1, MPI_INT, 0, comm_row);
 
   // print the received portion of vector x_sub
   /*cout << "(" << rank_col << ", " << rank_row << ") received: ";
   for (int i = 0; i < x_size; i++) {
     cout << x_sub[i] << " ";
   }
-  cout << endl;*/
-  
+  cout << endl;
+  */
 
 
   // work with row 0 to develop one vector of size M to hold results and distribute it among this row then horizontally
@@ -135,28 +137,19 @@ int main(int argc, char *argv[]) {
 
   // broadcast each y_sub from row 0 vertically in each process row
   MPI_Bcast(&y_size, 1, MPI_INT, 0, comm_col);
+  MPI_Bcast(&y_displs, 1, MPI_INT, 0, comm_col);
   
 
   //**conduct forward linear load-balanced distribution**
   vector<int> y_sub(y_size, 0);
-  int extra1 = M %size_col;
-  int nominal1 = M/size_col;
-  int extra2 = M %size_row;
-  int nominal2 = M/size_row;
- 
-  for(int i = 0; i < x_size; i++){
-    // compute global index I
-    int I = i + ((rank_col < extra1) ? (nominal1 + 1) * rank_col : (extra1 * (nominal1 + 1) + (rank_col - extra1) * nominal1));
-
-    // compute (qhat,jhat) of the element in the global array
-    int qhat = (I < extra2 * (nominal2 + 1)) ? I / (nominal2 + 1) : extra2 + (I - extra2 * (nominal2 + 1)) / nominal2;
-    int jhat = I - ((qhat < extra2) ? (nominal2 + 1) * qhat : (extra2 * (nominal2 + 1) + (qhat - extra2) * nominal2));
-
-    if(qhat == rank_row){
-      y_sub[jhat] = x_sub[i];
+  for (int i = 0; i < y_size; i++){
+    for (int j = 0; j < x_size; j++){
+      // if displacements from x and y match, then put the value in the vector in its corresponding position
+      if ((i + y_displs)  == (j + x_displs)){
+        y_sub[i] = x_sub[j];
+      }
     }
   }
-
 
   // perform allreduce among each col to fill up each index on each result vecot
   vector<int> result(y_size, 0);
@@ -168,7 +161,7 @@ int main(int argc, char *argv[]) {
     cout << setw(2) << result[i] << " ";
   }
   cout << endl;
- 
+
 
 
   MPI_Comm_free(&comm_row);

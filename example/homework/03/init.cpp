@@ -58,7 +58,6 @@ int main(int argc, char *argv[]) {
   int M = 32;
   int x_size = M/size_col + ((rank_col < (M % size_col)) ? 1 : 0);
   vector<int> x_sub(x_size);
-  int x_displs;
 
   // work with column 0 to develop one vector of size M and distribute it among this column then vertically
   if (rank_row == 0){
@@ -90,14 +89,11 @@ int main(int argc, char *argv[]) {
     }
 
     // scatter x and displacements across column 0
-    x_sub.resize(x_sizes_array[rank_col]);
     MPI_Scatterv(&x[0], &x_sizes_array[0], &x_displs_array[0], MPI_INT, &x_sub[0], x_size, MPI_INT, 0, comm_col);
-    MPI_Scatter(&x_displs_array[0], 1, MPI_INT, &x_displs, 1, MPI_INT, 0, comm_col);
   }
 
   // broadcast each x_sub from column 0 horizontally in each process row**
   MPI_Bcast(&x_sub[0], x_size, MPI_INT, 0, comm_row);
-  MPI_Bcast(&x_displs, 1, MPI_INT, 0, comm_row);
 
   // print the received portion of vector x_sub
   /*cout << "(" << rank_col << ", " << rank_row << ") received: ";
@@ -130,22 +126,30 @@ int main(int argc, char *argv[]) {
   MPI_Bcast(&y_size, 1, MPI_INT, 0, comm_col);
   
 
+  //NEW!! PROBLEM 3 OF HOMEWORK 3
   //**conduct linear scatter distribution**
- 
-  // calculates the starting point of the y_sub based on how many elements should exist before it with calculations using x_displs
-  int y_displs = (rank_col != 0) ? (x_displs - rank_row - 1) / size_row + 1 : 0;
-
-  // use round-robin to find values for y_sub and place them in y_sub starting at y_displs
   vector<int> y_sub(y_size, 0);
-  for (int i = 0; i < x_size; i++){
-    if (((i + x_displs) % size_row) == rank_row){
-      y_sub[y_displs] = x_sub[i];
-      y_displs++;
+  int extra1 = M % size_col;
+  int nominal1 = M / size_col;
+  int extra2 = M % size_row;
+  int nominal2 = M / size_row;
+
+
+  for(int i = 0; i < x_size; i++){
+    // compute global index I
+    int I = i + ((rank_col < extra1) ? (nominal1 + 1)* rank_col : (extra1*(nominal1 + 1)+(rank_col - extra1) * nominal1));
+
+    // compute (qhat, jhat) index of element in global vector
+    int qhat = I % Q;
+    int jhat = I / Q;
+
+    if(qhat == rank_row){ 
+      y_sub[jhat] = x_sub[i];
     }
   }
 
   // print y_sub
-  /*cout << "(" << rank_col << ", " << rank_row << ") | ";
+  /*(cout << "(" << rank_col << ", " << rank_row << ") | ";
   for (int i = 0; i < y_size; i++){
     cout << y_sub[i] << " ";
   }
