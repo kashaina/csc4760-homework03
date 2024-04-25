@@ -7,7 +7,8 @@
 
 using namespace std;
 
-vector<int> linearDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row, int rank_col, int size_row, int size_col, int M, int a);
+vector<int> horizontalDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row, int rank_col, int size_row, int size_col, int M, int a);
+vector<int> verticalDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row, int rank_col, int size_row, int size_col, int M, int a);
 
 int main(int argc, char *argv[]) {
   // PROBLEM 5 FROM HOMEWORK 2
@@ -61,12 +62,12 @@ int main(int argc, char *argv[]) {
   //**do Problem 1 with vertical and horizontal loads, and print result**
   
   // call functions to create vector of size M (numbers 0-63 (even for vector1 and odd for vector2) and distribute in a linear laod-balanced fashion. Results in a sub-vector of the original vector that is sliced in each row
-  vector<int> vector1 = linearDistribute(comm_row, comm_col, rank_row, rank_col, size_row, size_col, M, 0);  
-  vector<int> vector2 = linearDistribute(comm_row, comm_col, rank_row, rank_col, size_row, size_col, M, 1);
+  vector<int> vector1 = horizontalDistribute(comm_row, comm_col, rank_row, rank_col, size_row, size_col, M, 0);  
+  vector<int> vector2 = verticalDistribute(comm_row, comm_col, rank_row, rank_col, size_row, size_col, M, 1);
   MPI_Barrier(MPI_COMM_WORLD);
 
   // print vectorss
-  cout << "(" << rank_col << ", " << rank_row << ") | Vector 1: ";
+  /*cout << "(" << rank_col << ", " << rank_row << ") | Vector 1: ";
   for (int i = 0; i < vector1.size(); i++) {
     cout << setw(2) << vector1[i] << " ";
   }
@@ -79,7 +80,7 @@ int main(int argc, char *argv[]) {
   }
   cout << endl;
   MPI_Barrier(MPI_COMM_WORLD);
-  
+  */
 
   //**compute dot product among each row**
   int local_dot_product = 0;
@@ -102,7 +103,62 @@ int main(int argc, char *argv[]) {
 
 
 
-vector<int> linearDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row, int rank_col, int size_row, int size_col, int M, int a){
+vector<int> horizontalDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row, int rank_col, int size_row, int size_col, int M, int a){
+  int y_size = M/size_row + ((rank_row < (M % size_col)) ? 1 : 0);
+  vector<int> y_sub(y_size);
+  int y_displs;
+
+  // work with column 0 to develop one vector of size M and distribute it among this column then vertically
+  if (rank_col == 0){
+    std::vector<int> y_sizes_array(size_row);
+    std::vector<int> y_displs_array(size_row);
+
+    // calculate size of each sub-array
+    for (int i = 0; i < size_row; ++i) {
+      y_sizes_array[i] = M / size_row + ((i < (M % size_row)) ? 1 : 0);
+    }
+
+    // calculate displacement (what index the sub-array starts)
+    int y_count = y_displs_array[0] = 0;
+    for(int i = 1; i < size_row; ++i)
+    {
+      y_count += y_sizes_array[i-1];
+      y_displs_array[i] = y_count;
+    }
+
+    // define x and populate from 0, 2, ..., 64 in (0, 0)
+    std::vector<int> y(M);
+    if (rank_row == 0) {
+      cout << "\nOriginal array " << a + 1 << ": ";
+      for (int i = 0; i < M; ++i) {
+        y[i] = i * 2 + a;
+	cout << y[i] << " ";
+      }
+      cout << endl;
+    }
+
+    // scatter x and displacements across column 0
+    y_sub.resize(y_sizes_array[rank_row]);
+    MPI_Scatterv(&y[0], &y_sizes_array[0], &y_displs_array[0], MPI_INT, &y_sub[0], y_size, MPI_INT, 0, comm_row);
+    MPI_Scatter(&y_displs_array[0], 1, MPI_INT, &y_displs, 1, MPI_INT, 0, comm_row);
+  }
+
+  // broadcast each x_sub from column 0 horizontally in each process row**
+  MPI_Bcast(&y_sub[0], y_size, MPI_INT, 0, comm_col);
+  MPI_Bcast(&y_displs, 1, MPI_INT, 0, comm_col);
+
+  // print the received portion of vector x_sub
+  cout << "Vector 1 - Vertical | (" << rank_col << ", " << rank_row << ") | ";
+  for (int i = 0; i < y_size; i++) {
+    cout << y_sub[i] << " ";
+  }
+  cout << endl;
+
+  return y_sub;
+}
+
+
+vector<int> verticalDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row, int rank_col, int size_row, int size_col, int M, int a){
   int x_size = M/size_col + ((rank_col < (M % size_col)) ? 1 : 0);
   vector<int> x_sub(x_size);
   int x_displs;
@@ -139,20 +195,17 @@ vector<int> linearDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row,
     // scatter x and displacements across column 0
     x_sub.resize(x_sizes_array[rank_col]);
     MPI_Scatterv(&x[0], &x_sizes_array[0], &x_displs_array[0], MPI_INT, &x_sub[0], x_size, MPI_INT, 0, comm_col);
-    MPI_Scatter(&x_displs_array[0], 1, MPI_INT, &x_displs, 1, MPI_INT, 0, comm_col);
   }
 
   // broadcast each x_sub from column 0 horizontally in each process row**
   MPI_Bcast(&x_sub[0], x_size, MPI_INT, 0, comm_row);
-  MPI_Bcast(&x_displs, 1, MPI_INT, 0, comm_row);
 
   // print the received portion of vector x_sub
-  /*cout << "(" << rank_col << ", " << rank_row << ") received: ";
+  cout << "Vector 2 - Horizontal (Original) | (" << rank_col << ", " << rank_row << ") | ";
   for (int i = 0; i < x_size; i++) {
     cout << x_sub[i] << " ";
   }
   cout << endl;
-  */
 
  // work with row 0 to develop one vector of size M to hold results and distribute it among this row then horizontally
   int y_size, y_displs;
@@ -162,12 +215,12 @@ vector<int> linearDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row,
 
     // work with column 0 to develop y_sub arrays
     if (rank_row == 0){
-      
+
       // calculate size of each sub-array
       for(int i = 0; i < size_row; ++i){
         y_sizes_array[i] = M / size_row + ((i < (M % size_row)) ? 1 : 0);
       }
-      
+
       // calculate displacement (what index the sub-array starts)
       int count = y_displs_array[0] = 0;
       for(int i = 1; i < size_row; ++i){
@@ -183,7 +236,7 @@ vector<int> linearDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row,
 
   // broadcast each y_sub from row 0 vertically in each process row
   MPI_Bcast(&y_size, 1, MPI_INT, 0, comm_col);
-  
+
 
   //**conduct forward linear load-balanced distribution**
   vector<int> y_sub(y_size, 0);
@@ -191,7 +244,7 @@ vector<int> linearDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row,
   int nominal1 = M/size_col;
   int extra2 = M %size_row;
   int nominal2 = M/size_row;
- 
+
   for(int i = 0; i < x_size; i++){
     // compute global index I
     int I = i + ((rank_col < extra1) ? (nominal1 + 1) * rank_col : (extra1 * (nominal1 + 1) + (rank_col - extra1) * nominal1));
@@ -211,11 +264,11 @@ vector<int> linearDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row,
   MPI_Allreduce(&y_sub[0], &result[0], y_size, MPI_INT, MPI_SUM, comm_col);
 
   // print final results
-  /*cout << "(" << rank_col << ", " << rank_row << ") | ";
+  cout << "Vector 2 - Vertical (Transposed) | (" << rank_col << ", " << rank_row << ") | ";
   for (int i = 0; i < y_size; i++) {
-    cout << setw(2) << result[i] << " ";
+    cout << result[i] << " ";
   }
-  cout << endl;*/
- 
+  cout << endl;
+
   return result;
 }
