@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
   // create vector using only linear-loaded distribution
   vector<int> vector1 = linearDistribute(comm_row, comm_col, rank_row, rank_col, size_row, size_col, M, 0);  
   MPI_Barrier(MPI_COMM_WORLD);
-  cout << "(" << rank_col << ", " << rank_row << ") | Vector 1 (linear): ";
+  cout << "Vector 1 - Linear | (" << rank_col << ", " << rank_row << ") | ";
   for (int i = 0; i < vector1.size(); i++) {
     cout << setw(2) << vector1[i] << " ";
   }
@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
 
   // create vector initially in scatter distribution, then transposes it twice to be linear-loaded to be compatible with vector1
   vector<int> vector2 = scatterDistribute(comm_row, comm_col, rank_row, rank_col, size_row, size_col, M, 1);
-  cout << "(" << rank_col << ", " << rank_row << ") | New Vector 2 (linear): ";
+  cout << "Vector 2 - Linear (Transposed) | (" << rank_col << ", " << rank_row << ") | : ";
   for (int i = 0; i < vector2.size(); i++) {
     cout << setw(2) << vector2[i] << " ";
   }
@@ -88,6 +88,7 @@ int main(int argc, char *argv[]) {
 
   int global_dot_product;
   MPI_Allreduce(&local_dot_product, &global_dot_product, 1, MPI_INT, MPI_SUM, comm_row); 
+  MPI_Barrier(MPI_COMM_WORLD);
   cout << "(" << rank_col << ", " << rank_row << ") | Dot Product: " << global_dot_product << endl;
 
 
@@ -98,7 +99,7 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-
+// create vector using only linear-loaded distribution
 vector<int> linearDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row, int rank_col, int size_row, int size_col, int M, int a){
   int x_size = M/size_col + ((rank_col < (M % size_col)) ? 1 : 0);
   vector<int> x_sub(x_size);
@@ -221,7 +222,7 @@ vector<int> computeYSub(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row, int 
 }
 
 
-
+// create vector initially in scatter distribution, then transposes it twice to be linear-loaded to be compatible with vector1
 vector<int> scatterDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row, int rank_col, int size_row, int size_col, int M, int a){
   int x_size = M/size_col + ((rank_col < (M % size_col)) ? 1 : 0);
   vector<int> x_sub(x_size);
@@ -327,15 +328,15 @@ vector<int> scatterDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row
   vector<int> result_scatter(y_size, 0);
   MPI_Allreduce(&y_sub[0], &result_scatter[0], y_size, MPI_INT, MPI_SUM, comm_col);
 
-  // print scatter distribution
-  cout << "(" << rank_col << ", " << rank_row << ") | Original Vector 2 (scatter): ";
+  // print normal  distribution
+  /*cout << "Vector 2 - Normal | " << rank_col << ", " << rank_row << ") | ";
   for (int i = 0; i < y_size; i++) {
     cout << setw(2) << y_sub[i] << " ";
   }
   cout << endl;
-  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(MPI_COMM_WORLD);*/
 
-  //**transposition 2: convert scatter to x_sub arrays**
+  //**transposition 1: convert scatter to x_sub arrays**
   vector<int> new_x_sub(x_size, 0);
   for (int i = 0; i < x_size; i++) {
     int I = i + ((rank_col < extra1) ? (nominal1 + 1) * rank_col : (extra1 * (nominal1 + 1) + (rank_col - extra1) * nominal1));
@@ -351,12 +352,12 @@ vector<int> scatterDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row
   MPI_Barrier(MPI_COMM_WORLD);
 
   // print new_x_sub
-  /*cout << "(" << rank_col << ", " << rank_row << ") | xsub: ";
+  cout << "Vector 2 - Scattered (Original) | (" << rank_col << ", " << rank_row << ") | ";
   for (int i = 0; i < x_size; i++){ 
     cout << setw(2) << result_transpose1[i] << " ";
   }
   cout << endl;
-  MPI_Barrier(MPI_COMM_WORLD);*/
+  MPI_Barrier(MPI_COMM_WORLD);
 
   //**transposition 2: convert x_sub arrays to linear-loaded**
   return computeYSub(comm_row, comm_col, rank_row, rank_col, size_row, size_col, M, result_transpose1, x_size);
