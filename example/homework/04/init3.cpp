@@ -67,15 +67,16 @@ int main(int argc, char *argv[]) {
   MPI_Barrier(MPI_COMM_WORLD);
 
   // print vector
-  /*cout << "(" << rank_col << ", " << rank_row << ") | Vector 1: ";
-  for (int i = 0; i < vector.size(); i++) {
-    cout << setw(2) << vector[i] << " ";
+  cout << "Original Vector | (" << rank_col << ", " << rank_row << ") ";
+  for (int i = 0; i < my_vector.size(); i++) {
+    cout << setw(2) << my_vector[i] << " ";
   }
   cout << endl;
-  MPI_Barrier(MPI_COMM_WORLD);*/
+  MPI_Barrier(MPI_COMM_WORLD);
  
+  //**create linearly loaded matrix**
+  //create and initialize matrix
   vector<vector<int>> matrix(N, vector<int>(M, 0));
-
   if (rank_row == 0 && rank_col == 0){
     for (int i = 0; i < N; ++i) {
       for (int j = 0; j < M; ++j) {
@@ -84,15 +85,16 @@ int main(int argc, char *argv[]) {
     }
 
     // Print the elements of the matrix
-    /*for (int i = 0; i < matrix.size(); ++i) {
+  cout << "Original Matrix | (" << rank_col << ", " << rank_row << ") ";  
+  for (int i = 0; i < matrix.size(); ++i) {
       for (int j = 0; j < matrix[i].size(); ++j) {
         cout << matrix[i][j] << " ";
       }
         cout << endl;
-    }*/
+    }
   }
 
-  //vector<vector<int>> colDistribution = matrixColDistribute(comm_row, comm_col, rank_row, rank_col, size_row, size_col, M, N, matrix);
+  vector<vector<int>> colDistribution = matrixColDistribute(comm_row, comm_col, rank_row, rank_col, size_row, size_col, M, N, matrix);
   vector<vector<int>> rowDistribution = matrixRowDistribute(comm_row, comm_col, rank_row, rank_col, size_row, size_col, M, N, matrix);
 
   //**compute dot product among each row**
@@ -114,9 +116,7 @@ int main(int argc, char *argv[]) {
 }
 
 
-
-
-
+//linearly distributes a vector
 vector<int> linearDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row, int rank_col, int size_row, int size_col, int M, int a){
   int x_size = M/size_col + ((rank_col < (M % size_col)) ? 1 : 0);
   vector<int> x_sub(x_size);
@@ -223,35 +223,37 @@ vector<int> linearDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row,
   // perform allreduce among each col to fill up each index on each result vecot
   vector<int> result(y_size, 0);
   MPI_Allreduce(&y_sub[0], &result[0], y_size, MPI_INT, MPI_SUM, comm_col);
+  MPI_Barrier(MPI_COMM_WORLD);
 
   // print final results
-  /*cout << "(" << rank_col << ", " << rank_row << ") | ";
+  cout << "Vector - Distributed | (" << rank_col << ", " << rank_row << ") | ";
   for (int i = 0; i < y_size; i++) {
     cout << setw(2) << result[i] << " ";
   }
-  cout << endl;*/
+  cout << endl;
  
   return result;
 }
 
+//distributes a given matrix by columns
 vector<vector<int>> matrixColDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row, int rank_col, int size_row, int size_col, int M, int N, vector<vector<int>> matrix){
   //**create matrix and distribute in linear-load balanced among rows and columns** 
-  int x_size = M/size_col + ((rank_col < (M % size_col)) ? 1 : 0);
+  int x_size = M/size_row + ((rank_row < (M % size_row)) ? 1 : 0);
   vector<vector<int>> x_sub(N, vector<int>(x_size, 0));
 
   // work with column 0 to develop one vector of size M and distribute it among this column then vertically
   if (rank_row == 0){
-    std::vector<int> x_sizes_array(size_col);
-    std::vector<int> x_displs_array(size_col);
+    std::vector<int> x_sizes_array(size_row);
+    std::vector<int> x_displs_array(size_row);
 
     // calculate size of each sub-array
-    for (int i = 0; i < size_col; ++i) {
-      x_sizes_array[i] = M / size_col + ((i < (M % size_col)) ? 1 : 0);
+    for (int i = 0; i < size_row; ++i) {
+      x_sizes_array[i] = M / size_row + ((i < (M % size_row)) ? 1 : 0);
     }
 
     // calculate displacement (what index the sub-array starts)
     int x_count = x_displs_array[0] = 0;
-    for(int i = 1; i < size_col; ++i){
+    for(int i = 1; i < size_row; ++i){
       x_count += x_sizes_array[i-1];
       x_displs_array[i] = x_count;
     }
@@ -260,116 +262,26 @@ vector<vector<int>> matrixColDistribute(MPI_Comm comm_row, MPI_Comm comm_col, in
     for (int i = 0; i < N; i++){
       MPI_Scatterv(&matrix[i][0], &x_sizes_array[0], &x_displs_array[0], MPI_INT, &x_sub[i][0], x_size, MPI_INT, 0, comm_col);
     }
-
-
-    cout << "(" << rank_col << ", " << rank_row << ") | " << endl;
-    for (int i = 0; i < N; ++i) {
-      for (int j = 0; j < x_size; ++j) {
-        cout << x_sub[i][j] << " ";
-      }
-      cout << endl;
-    }
+    cout << "LISTEN " << x_sizes_array.size() << " " << size_row << endl;
   }
 
-  /*cout << "(" << rank_col << ", " << rank_row << ") | " << endl;
-  for (int i = 0; i < N; ++i) {
-    for (int j = 0; j < x_size; ++j) {
-      cout << x_sub[i][j] << " ";
-    }
-    cout << endl;
+  //cout << "LISTEN | (" << rank_col << ", " << rank_row << ") | " << x_sizes_array.size() << " " << size_row << " " << N << endl;
+
+  /*for (int i = 0; i < N; i++){
+    MPI_Bcast(&x_sub[i][0], x_size, MPI_INT, 0, comm_col);
   }*/
 
-  for (int i = 0; i < N; i++){
-    MPI_Bcast(&x_sub[i][0], x_size, MPI_INT, 0, comm_row);
-  }
-
-  cout << "(" << rank_col << ", " << rank_row << ") | " << endl;
+  cout << "Matrix - Row | (" << rank_col << ", " << rank_row << ") | " << endl;
   for (int i = 0; i < x_sub.size(); ++i) {
-    for (int j = 0; j < x_sub[i].size(); ++j) {
-      cout << x_sub[i][j] << " ";
-    }
-    cout << endl;
-  }
-
-
-  // print final results
-  /*cout << "(" << rank_col << ", " << rank_row << ") | ";
-  for (int i = 0; i < N; ++i) {
-    for (int j = 0; j < x_size; ++j) {
-        cout << x_sub[i][j] << " ";
-    }
-    cout << " n ";
-  }
+     for (int j = 0; j < x_sub[i].size(); ++j) {
+       cout << x_sub[i][j] << " ";
+     }
   cout << endl;
-*/
- /* int y_size, y_displs;
-  if(rank_col == 0){
-    int *y_sizes_array = new int[size_row];
-    int *y_displs_array = new int[size_row];
-
-    // work with column 0 to develop y_sub arrays
-    if (rank_row == 0){
-      
-      // calculate size of each sub-array
-      for(int i = 0; i < size_row; ++i){
-        y_sizes_array[i] = M / size_row + ((i < (M % size_row)) ? 1 : 0);
-      }
-      
-      // calculate displacement (what index the sub-array starts)
-      int count = y_displs_array[0] = 0;
-      for(int i = 1; i < size_row; ++i){
-        count += y_sizes_array[i-1];
-        y_displs_array[i] = count;
-      }
-    }
-
-    // scatter sizes and displacements across row 0
-    MPI_Scatter(y_sizes_array, 1, MPI_INT, &y_size, 1, MPI_INT, 0, comm_row);
   }
-
-  // broadcast each y_sub from row 0 vertically in each process row
-  MPI_Bcast(&y_size, 1, MPI_INT, 0, comm_col);
-
-  int p = rank_col;
-  int q = rank_row;
-  //vector<int> y_sub(y_size, 0);
-  vector<vector<int>> y_sub(N, vector<int>(y_size, 0));
-  int extra1 = M %size_col; int nominal1 = M/size_col;
-  int extra2 = M %size_row; int nominal2 = M/size_row;
-
-  for (int j = 0; j < N; j++){
-    for(int i = 0; i < x_size; i++){ // x_size is your # of local elements in, as you've defined
-    // x local to global: given that this element is (p,i), what is its global index I?
-    // x local to global: given that this element is (p,i), what is its global index I?
-      int I = i + ((p < extra1) ? (nominal1 + 1) * p : (extra1 * (nominal1 + 1) + (p - extra1) * nominal1));
-
-      // so to what (qhat,jhat) does this element of the original global vector go?
-      int qhat = (I < extra2 * (nominal2 + 1)) ? I / (nominal2 + 1) : extra2 + (I - extra2 * (nominal2 + 1)) / nominal2;
-      int jhat = I - ((qhat < extra2) ? (nominal2 + 1) * qhat : (extra2 * (nominal2 + 1) + (qhat - extra2) * nominal2));
-
-      if(qhat == q){  // great, this process has an element of y!
-        y_sub[j][jhat] = x_sub[j][i];
-      }
-    }
-  }
-
-  // perform allreduce among each col to fill up each index on each result vecot
-  vector<vector<int>> y_result(N, vector<int>(y_size, 0));
-  for (int i = 0; i < N; i++){
-    MPI_Allreduce(&y_sub[i][0], &y_result[i][0], y_size, MPI_INT, MPI_SUM, comm_col);
-  }
-
-  // print final results
-  cout << "(" << rank_col << ", " << rank_row << ") | " << endl;
-  for (int i = 0; i < N; ++i) {
-    for (int j = 0; j < y_size; ++j) {
-        cout << y_result[i][j] << " ";
-    }
-    cout << endl;
-  }
-  return y_result;*/
-  return matrix;
+  return x_sub;  
 }
+
+
 
 vector<vector<int>> matrixRowDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row, int rank_col, int size_row, int size_col, int M, int N, vector<vector<int>> matrix){
   vector<vector<int>> transposed_matrix(M, vector<int>(N, 0));
@@ -412,14 +324,6 @@ vector<vector<int>> matrixRowDistribute(MPI_Comm comm_row, MPI_Comm comm_col, in
     }
   }
 
-  /*cout << "(" << rank_col << ", " << rank_row << ") | " << endl;
-  for (int i = 0; i < N; ++i) {
-    for (int j = 0; j < x_size; ++j) {
-      cout << x_sub[i][j] << " ";
-    }
-    cout << endl;
-  }*/
-
   for (int i = 0; i < N; i++){
     MPI_Bcast(&x_sub[i][0], x_size, MPI_INT, 0, comm_row);
   }
@@ -431,7 +335,7 @@ vector<vector<int>> matrixRowDistribute(MPI_Comm comm_row, MPI_Comm comm_col, in
       }
     }
 
-   cout << "(" << rank_col << ", " << rank_row << ") | " << endl;
+   cout << "Matrix - Row | (" << rank_col << ", " << rank_row << ") | " << endl;
    for (int i = 0; i < transposed_x_sub.size(); ++i) {
      for (int j = 0; j < transposed_x_sub[i].size(); ++j) {
        cout << transposed_x_sub[i][j] << " ";

@@ -1,6 +1,6 @@
 KOKKOS_PATH = ../../..
 KOKKOS_SRC_PATH = ${KOKKOS_PATH}
-SRC = $(wildcard ${KOKKOS_SRC_PATH}/example/homework/02/*.cpp)
+SRC = $(wildcard ${KOKKOS_SRC_PATH}/example/homework/02/init.cpp)
 vpath %.cpp $(sort $(dir $(SRC)))
 
 default: build

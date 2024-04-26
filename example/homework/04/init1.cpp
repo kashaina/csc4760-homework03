@@ -126,12 +126,10 @@ vector<int> horizontalDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_
     // scatter x and displacements across column 0
     y_sub.resize(y_sizes_array[rank_row]);
     MPI_Scatterv(&y[0], &y_sizes_array[0], &y_displs_array[0], MPI_INT, &y_sub[0], y_size, MPI_INT, 0, comm_row);
-    MPI_Scatter(&y_displs_array[0], 1, MPI_INT, &y_displs, 1, MPI_INT, 0, comm_row);
   }
 
   // broadcast each x_sub from column 0 horizontally in each process row**
   MPI_Bcast(&y_sub[0], y_size, MPI_INT, 0, comm_col);
-  MPI_Bcast(&y_displs, 1, MPI_INT, 0, comm_col);
 
   // print the received portion of vector y_sub
   cout << "Vector 1 - Vertical | (" << rank_col << ", " << rank_row << ") | ";
@@ -180,7 +178,6 @@ vector<int> verticalDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_ro
     }
 
     // scatter x and displacements across column 0
-    x_sub.resize(x_sizes_array[rank_col]);
     MPI_Scatterv(&x[0], &x_sizes_array[0], &x_displs_array[0], MPI_INT, &x_sub[0], x_size, MPI_INT, 0, comm_col);
   }
 
@@ -202,23 +199,14 @@ vector<int> verticalDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_ro
 
     // work with column 0 to develop y_sub arrays
     if (rank_row == 0){
-
       // calculate size of each sub-array
       for(int i = 0; i < size_row; ++i){
         y_sizes_array[i] = M / size_row + ((i < (M % size_row)) ? 1 : 0);
       }
-
-      // calculate displacement (what index the sub-array starts)
-      int count = y_displs_array[0] = 0;
-      for(int i = 1; i < size_row; ++i){
-        count += y_sizes_array[i-1];
-        y_displs_array[i] = count;
-      }
     }
 
-    // scatter sizes and displacements across row 0
+    // scatter sizes  across row 0
     MPI_Scatter(y_sizes_array, 1, MPI_INT, &y_size, 1, MPI_INT, 0, comm_row);
-    MPI_Scatter(y_displs_array, 1, MPI_INT, &y_displs, 1, MPI_INT, 0, comm_row);
   }
 
   // broadcast each y_sub from row 0 vertically in each process row

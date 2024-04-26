@@ -111,7 +111,6 @@ int main(int argc, char *argv[]) {
 
     // work with column 0 to develop y_sub arrays
     if (rank_row == 0){
-      
       // calculate size of each sub-array
       for(int i = 0; i < size_row; ++i){
         y_sizes_array[i] = M / size_row + ((i < (M % size_row)) ? 1 : 0);
