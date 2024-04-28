@@ -60,8 +60,8 @@ int main(int argc, char *argv[]) {
   int M = 7;
   int N = 6;
 
-  //**do Problem 1 with vertical and horizontal loads, and print result**
-  
+  //**create vector and matrix**
+
   // create a vector (numbers 0-63 even) and distribute it in horizontal linear load balance
   vector<int> vector1 = vectorDistribute(comm_row, comm_col, rank_row, rank_col, size_row, size_col, M);  
   MPI_Barrier(MPI_COMM_WORLD);
@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
   vector<vector<int>> matrix = matrixDistribute(comm_row, comm_col, rank_row, rank_col, size_row, size_col, M, N);
   MPI_Barrier(MPI_COMM_WORLD);
 
-  // calculate global y displacements
+  //**calculate global y displacements**
   /*int y_size = N/size_col + ((rank_col < (N % size_col)) ? 1 : 0);//only edited col
   int y_displs;
   int y_displs_temp;
@@ -103,25 +103,53 @@ int main(int argc, char *argv[]) {
     }
   }*/
   
+  //**compute y:= Ax**
   // compute the local dot product between a local row and and local vector. repeat for each row in a process
-  vector<int> y(matrix[0].size(), 0);
+  vector<int> y_sub(matrix[0].size(), 0);
   for (int i = 0; i < matrix.size(); i++){
     for (int j = 0; j < matrix[i].size(); j++){
-      y[i] += matrix[i][j] * vector1[j];
+      y_sub[i] += matrix[i][j] * vector1[j];
       //cout << "(" << rank_col << ", " << rank_row << ") | " << i + y_displs << " = " << matrix[i][j] << " * " << vector1[j] << " = " << (matrix[i][j] * vector1[j]) << endl;
     }
   }
 
   // do allreduce for each column to add local dot products for each y index
-  vector<int> result(matrix.size());
-  MPI_Allreduce(&y[0], &result[0], N, MPI_INT, MPI_SUM, comm_row);
+  vector<int> y(matrix.size());
+  MPI_Allreduce(&y_sub[0], &y[0], N, MPI_INT, MPI_SUM, comm_row);
   
   // print dot product
-  cout << "Dot Product | (" << rank_col << ", " << rank_row << ") | ";
-  for (int i = 0; i < result.size(); ++i) {
-        cout << result[i] << " ";
+  cout << "Y - Dot Product | (" << rank_col << ", " << rank_row << ") | ";
+  for (int i = 0; i < y.size(); ++i) {
+        cout << y[i] << " ";
     }
-    cout << endl;
+  cout << endl;
+  MPI_Barrier(MPI_COMM_WORLD);
+  
+
+  //**compute z:= Ay**
+  // compute the local dot product between a local row and and local vector. repeat for each row in a process
+  vector<int> z_sub(matrix[0].size(), 0);
+  for (int i = 0; i < matrix.size(); i++){
+    for (int j = 0; j < matrix[i].size(); j++){
+      z_sub[i] += matrix[i][j] * y[j];
+      //cout << "(" << rank_col << ", " << rank_row << ") | " << i + y_displs << " = " << matrix[i][j] << " * " << vector1[j] << " = " << (matrix[i][j] * vector1[j]) << endl;
+    }
+  }
+
+  // do allreduce for each column to add local dot products for each y index
+  vector<int> z(matrix.size());
+  MPI_Allreduce(&z_sub[0], &z[0], N, MPI_INT, MPI_SUM, comm_row);
+
+  // print dot product
+  cout << "Z (Extra Credit) | (" << rank_col << ", " << rank_row << ") | ";
+  for (int i = 0; i < z.size(); ++i) {
+        cout << z[i] << " ";
+    }
+  cout << endl;
+
+
+
+
 
 
   MPI_Comm_free(&comm_row);
