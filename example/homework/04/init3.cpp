@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   
-  if(size != 1){
+  if(size != 15){
     if (rank == 0){ 
       cerr << "Please try again with 15 processes. Exiting." << endl << endl;
     } 
@@ -25,8 +25,8 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  int Q = 1;
-  int P = 1;
+  int Q = 5;
+  int P = 3;
 
   if (rank == 0){
     cout << "\nWorld size: " << size;
@@ -65,15 +65,16 @@ int main(int argc, char *argv[]) {
   // create a vector (numbers 0-63 even) and distribute it in horizontal linear load balance
   vector<int> vector1 = vectorDistribute(comm_row, comm_col, rank_row, rank_col, size_row, size_col, M);  
   MPI_Barrier(MPI_COMM_WORLD);
-  
-  vector<vector<int>> matrix = matrixDistribute(comm_row, comm_col, rank_row, rank_col, size_row, size_col, M, N);
 
-  //**conduct dot product**
-  vector<int> y(5, 0);
-  //**slice x_sub by rows and keep needed row
-  int y_size = N/size_col + ((rank_col < (N % size_col)) ? 1 : 0);//only edited col
+  // create a 7 x 6 matrix (numbers 0-41) and slice it into m x n portions  
+  vector<vector<int>> matrix = matrixDistribute(comm_row, comm_col, rank_row, rank_col, size_row, size_col, M, N);
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  // calculate global y displacements
+  /*int y_size = N/size_col + ((rank_col < (N % size_col)) ? 1 : 0);//only edited col
   int y_displs;
   int y_displs_temp;
+  vector<int> y(5, 0);
   vector<int> y_displs_array(size_col);
 
   if (rank_row == 0){
@@ -100,15 +101,28 @@ int main(int argc, char *argv[]) {
       y[i + y_displs] += matrix[i][j] * vector1[j];
       cout << "(" << rank_col << ", " << rank_row << ") | " << i + y_displs << " = " << matrix[i][j] << " * " << vector1[j] << " = " << (matrix[i][j] * vector1[j]) << endl;
     }
+  }*/
+  
+  // compute the local dot product between a local row and and local vector. repeat for each row in a process
+  vector<int> y(matrix[0].size(), 0);
+  for (int i = 0; i < matrix.size(); i++){
+    for (int j = 0; j < matrix[i].size(); j++){
+      y[i] += matrix[i][j] * vector1[j];
+      //cout << "(" << rank_col << ", " << rank_row << ") | " << i + y_displs << " = " << matrix[i][j] << " * " << vector1[j] << " = " << (matrix[i][j] * vector1[j]) << endl;
+    }
   }
 
-  vector<int> result(N);
+  // do allreduce for each column to add local dot products for each y index
+  vector<int> result(matrix.size());
   MPI_Allreduce(&y[0], &result[0], N, MPI_INT, MPI_SUM, comm_row);
-  cout << "Result | (" << rank_col << ", " << rank_row << ") | ";
-  for (int i = 0; i < N; ++i) {
+  
+  // print dot product
+  cout << "Dot Product | (" << rank_col << ", " << rank_row << ") | ";
+  for (int i = 0; i < result.size(); ++i) {
         cout << result[i] << " ";
     }
     cout << endl;
+
 
   MPI_Comm_free(&comm_row);
   MPI_Comm_free(&comm_col);
@@ -116,6 +130,7 @@ int main(int argc, char *argv[]) {
   MPI_Finalize();
   return 0;
 }
+
 
 // create a vector (numbers 0-63 even) and distribute it in horizontal linear load balance
 vector<int> vectorDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row, int rank_col, int size_row, int size_col, int M){
@@ -161,7 +176,7 @@ vector<int> vectorDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row,
   MPI_Bcast(&y_sub[0], y_size, MPI_INT, 0, comm_col);
 
   // print the received portion of vector y_sub
-  cout << "Vector 1 | (" << rank_col << ", " << rank_row << ") | ";
+  cout << "Vector Division | (" << rank_col << ", " << rank_row << ") | ";
   for (int i = 0; i < y_size; i++) {
     cout << y_sub[i] << " ";
   }
