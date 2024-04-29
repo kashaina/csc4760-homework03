@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
 
 // create a vector (numbers 0-63 even) and distribute it in horizontal linear load balance
 vector<int> horizontalDistribute(MPI_Comm comm_row, MPI_Comm comm_col, int rank_row, int rank_col, int size_row, int size_col, int M, int a){
-  int y_size = M/size_row + ((rank_row < (M % size_col)) ? 1 : 0);
+  int y_size = M/size_row + ((rank_row < (M % size_row)) ? 1 : 0);
   vector<int> y_sub(y_size);
   int y_displs;
 
