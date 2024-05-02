@@ -89,7 +89,11 @@ int main(int argc, char *argv[]) {
     }
   cout << endl;
   MPI_Barrier(MPI_COMM_WORLD);
-  
+
+  //answer question
+  if (rank == 0){
+    cout << "Output vector y is stored in vertical distribution" << endl << endl;
+  }  
 
   //**compute z:= Ay**
   // compute the local dot product between a local row and and local vector. repeat for each row in a process

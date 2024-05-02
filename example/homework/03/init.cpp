@@ -54,12 +54,12 @@ int main(int argc, char *argv[]) {
   //PROBLEM 1 FROM HOMEWORK 3
 
 
-  //**store vector x of length M, distributed in a linear load-balanced fashion vertically**
+  //**store vector x of length M, distributed in a linear load-balanced fashion**
   int M = 32;
   int x_size = M/size_col + ((rank_col < (M % size_col)) ? 1 : 0);
   vector<int> x_sub(x_size);
 
-  // work with column 0 to develop one vector of size M and distribute it among this column then vertically
+  // work with column 0 to develop one vector of size M and distribute it among this column then broadcast to the others
   if (rank_row == 0){
     std::vector<int> x_sizes_array(size_col);
     std::vector<int> x_displs_array(size_col);
@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
   */
 
 
-  // work with row 0 to develop one vector of size M to hold results and distribute it among this row then horizontally
+  // work with row 0 to develop one vector of size M to hold results and distribute it among this row
   int y_size;
   if(rank_col == 0){
     int *y_sizes_array = new int[size_row];

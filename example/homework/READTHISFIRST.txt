@@ -1,0 +1,2 @@
+please don't mind my comments where I mixed up horizontal and vertical load distributions. I got confused so my naming is mixed up on most of the problems oops
+This does not affect the output of the answers though

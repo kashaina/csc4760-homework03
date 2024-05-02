@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
 
 
   //**store vector x of length M, distributed in a linear load-balanced fashion vertically**
-  int M = 14;
+  int M = 32;
   int x_size = M/size_col + ((rank_col < (M % size_col)) ? 1 : 0);
   vector<int> x_sub(x_size);
   int x_displs;
@@ -90,7 +90,6 @@ int main(int argc, char *argv[]) {
     }
 
     // scatter x and displacements across column 0
-    x_sub.resize(x_sizes_array[rank_col]);
     MPI_Scatterv(&x[0], &x_sizes_array[0], &x_displs_array[0], MPI_INT, &x_sub[0], x_size, MPI_INT, 0, comm_col);
   }
 
@@ -114,23 +113,14 @@ int main(int argc, char *argv[]) {
 
     // work with column 0 to develop y_sub arrays
     if (rank_row == 0){
-      
       // calculate size of each sub-array
       for(int i = 0; i < size_row; ++i){
         y_sizes_array[i] = M / size_row + ((i < (M % size_row)) ? 1 : 0);
       }
-      
-      // calculate displacement (what index the sub-array starts)
-      int count = y_displs_array[0] = 0;
-      for(int i = 1; i < size_row; ++i){
-        count += y_sizes_array[i-1];
-        y_displs_array[i] = count;
-      }
     }
 
-    // scatter sizes and displacements across row 0
+    // scatter sizes across row 0
     MPI_Scatter(y_sizes_array, 1, MPI_INT, &y_size, 1, MPI_INT, 0, comm_row);
-    MPI_Scatter(y_displs_array, 1, MPI_INT, &y_displs, 1, MPI_INT, 0, comm_row);
   }
 
   // broadcast each y_sub from row 0 vertically in each process row
